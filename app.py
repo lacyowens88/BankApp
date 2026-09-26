@@ -421,11 +421,31 @@ def validate_query(user_question, candidate_sql, db_connection, query_library, e
     # Check 2: Schema conformance check
     cur = db_connection.cursor()
     real_tables = [r[0] for r in cur.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    real_tables_lower = {t.lower() for t in real_tables}
     real_columns = set()
     for t in real_tables:
         for col_info in cur.execute(f"PRAGMA table_info({t})").fetchall():
             real_columns.add(col_info[1].lower())
-    referenced_identifiers = re.findall(r"\b[a-z_][a-z0-9_]*\b", candidate_sql.lower())
+
+    # Strip single-quoted string literals first, so quoted values (e.g. 'Substandard',
+    # 'Doubtful', '2025-09-30') are never mistaken for column/table identifiers.
+    sql_no_strings = re.sub(r"'[^']*'", " ", candidate_sql)
+    sql_lower = sql_no_strings.lower()
+
+    # Dynamically detect table aliases (e.g. "loan_master lm", "sector_master AS sm")
+    # instead of relying on a fixed list of single-letter aliases.
+    table_aliases = set()
+    for tbl, alias in re.findall(
+        r"\b(?:from|join)\s+([a-z_][a-z0-9_]*)\s+(?:as\s+)?([a-z_][a-z0-9_]*)\b", sql_lower
+    ):
+        if tbl in real_tables_lower and alias not in {"on", "where", "group", "order", "join", "as"}:
+            table_aliases.add(alias)
+
+    # Dynamically detect computed/output column aliases (e.g. "... AS total_outstanding_mn").
+    # These are new names the query defines, not columns that exist in the schema.
+    computed_aliases = set(re.findall(r"\bas\s+([a-z_][a-z0-9_]*)\b", sql_lower))
+
+    referenced_identifiers = re.findall(r"\b[a-z_][a-z0-9_]*\b", sql_lower)
     sql_keywords = {
         "select", "from", "where", "and", "or", "group", "by", "order", "having", "limit", "join", "on", "as", "case",
         "when", "then", "else", "end", "sum", "count", "avg", "min", "max", "round", "desc", "asc", "left", "right",
@@ -433,8 +453,9 @@ def validate_query(user_question, candidate_sql, db_connection, query_library, e
     }
     unknown = [
         tok for tok in referenced_identifiers
-        if tok not in sql_keywords and tok not in real_columns and tok not in real_tables
-        and not tok.isdigit() and tok not in ("s", "l", "p", "r", "e6")
+        if tok not in sql_keywords and tok not in real_columns and tok not in real_tables_lower
+        and tok not in table_aliases and tok not in computed_aliases
+        and not tok.isdigit()
     ]
     if unknown:
         result["failed_check"] = "schema_conformance"
