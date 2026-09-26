@@ -500,10 +500,18 @@ You are a senior credit-risk analyst reviewing a SQL query before it is executed
 {candidate_sql}
 
 ### INSTRUCTIONS
-Judge whether the candidate SQL correctly answers the user question - including using the right
-tables, metrics, joins, aggregations, and (where applicable) the NPA definition
-(asset_classification IN ('Substandard', 'Doubtful', 'Loss')) and the latest-date logic
-('2025-09-30').
+Judge only whether the candidate SQL correctly answers what the user actually asked - the right
+tables, metrics, joins, and aggregations for that specific question. Do not require anything the
+question did not ask for.
+
+Two rules apply *conditionally*, only when the question calls for them - do NOT fail the query for
+omitting either one when the question does not need it:
+- NPA definition (asset_classification IN ('Substandard', 'Doubtful', 'Loss')) applies only if the
+  question is specifically about NPAs, non-performing assets, or delinquency status.
+- Latest-date filtering ('2025-09-30') applies only if the question specifically asks about the
+  "latest" reporting quarter or rating cycle.
+Most questions (e.g. averages, counts, or breakdowns across the whole portfolio) need NEITHER rule -
+that is expected and correct, not a defect.
 
 ### OUTPUT
 Return ONLY a JSON dictionary:
@@ -555,6 +563,10 @@ Rules:
 - Do NOT use any DDL (CREATE, ALTER, DROP) or DML (INSERT, UPDATE, DELETE) statements.
 - Only reference tables and columns that exist in the database schema below.
 - Ensure the query is syntactically correct for SQLite.
+- Stay faithful to the original question: only add a WHERE filter (such as NPA status or the
+  latest reporting date) if the question actually asks for it. Do not add filters, date
+  restrictions, or narrowing conditions the question never requested, even if the validation
+  error suggests you should - re-read the question and fix only what is genuinely broken.
 - Return ONLY the corrected SQL query, without any additional text, explanations, or markdown fences.
 
 User Question:
