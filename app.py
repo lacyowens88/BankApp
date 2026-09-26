@@ -373,8 +373,10 @@ Here are some important rules:
 - The query must be read-only, using only SELECT or WITH statements.
 - Do NOT use any DDL (CREATE, ALTER, DROP) or DML (INSERT, UPDATE, DELETE) statements.
 - Ensure the query is syntactically correct for SQLite.
-- If the question involves 'NPA' (Non-Performing Assets), remember that NPA is defined as `asset_classification IN ('Substandard', 'Doubtful', 'Loss')`.
-- If the question involves 'latest reporting quarter' or 'latest rating cycle', use the latest available dates: '2025-09-30' for both.
+- If the question involves 'NPA' (Non-Performing Assets), remember that NPA is defined as `asset_classification IN ('Substandard', 'Doubtful', 'Loss')`. This is a `loan_master` column and is UNRELATED to `ifrs9_stage`.
+- `ifrs9_stage` (values 1, 2, or 3) lives on the `provisioning` table and is a completely different classification from `asset_classification`. Only filter on `asset_classification` if the question is about NPAs or delinquency status; only filter on `ifrs9_stage` if the question explicitly mentions IFRS 9 stage. Never substitute one for the other.
+- If the question involves 'latest reporting quarter' or 'latest rating cycle', use the latest available date: '2025-09-30'.
+- The `provisioning` table has exactly 4 distinct `reporting_date` values in total: '2024-12-31', '2025-03-31', '2025-06-30', '2025-09-30'. So "the last 4 quarters" or "all quarters" means ALL of these dates - do not add a date filter or LIMIT that excludes any of them. If asked for "the last N quarters" where N is less than 4, select the N most recent reporting_date values via ORDER BY reporting_date DESC LIMIT N (or an equivalent subquery), not a hardcoded date range.
 - Return ONLY the SQL query, without any additional text, explanations, or markdown fences (```sql).
 
 User Question:
@@ -567,6 +569,12 @@ Rules:
   latest reporting date) if the question actually asks for it. Do not add filters, date
   restrictions, or narrowing conditions the question never requested, even if the validation
   error suggests you should - re-read the question and fix only what is genuinely broken.
+- `asset_classification` (on `loan_master`, values Pass/Special Mention/Substandard/Doubtful/Loss)
+  and `ifrs9_stage` (on `provisioning`, values 1/2/3) are UNRELATED columns on different tables -
+  never substitute one for the other.
+- The `provisioning` table has exactly 4 distinct `reporting_date` values total: '2024-12-31',
+  '2025-03-31', '2025-06-30', '2025-09-30'. "The last 4 quarters" or "all quarters" means ALL of
+  them - do not filter any of them out.
 - Return ONLY the corrected SQL query, without any additional text, explanations, or markdown fences.
 
 User Question:
